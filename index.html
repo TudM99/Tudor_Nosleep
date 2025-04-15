@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tudor's Nosleep Zone</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9fa;
+            color: #343a40;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            transition: background-color 0.5s ease;
+        }
+        
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
+        }
+        
+        h1 {
+            margin: 0 0 20px;
+            font-weight: 700;
+            font-size: 2.5rem;
+        }
+        
+        p {
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            color: #495057;
+            line-height: 1.6;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .status-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #dee2e6;
+        }
+        
+        .status-indicator.active {
+            background-color: #20c997;
+            box-shadow: 0 0 12px rgba(32, 201, 151, 0.5);
+        }
+        
+        .status-text {
+            font-weight: 500;
+        }
+        
+        button {
+            background-color: #343a40;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        button:hover {
+            background-color: #212529;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background-color: #adb5bd;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .time-active {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .dark-mode {
+            background-color: #212529;
+            color: #f8f9fa;
+        }
+        
+        .dark-mode .container {
+            background-color: #343a40;
+        }
+        
+        .dark-mode p {
+            color: #dee2e6;
+        }
+        
+        .dark-mode button {
+            background-color: #20c997;
+            color: #212529;
+        }
+        
+        .dark-mode button:hover {
+            background-color: #12b886;
+        }
+        
+        .dark-mode button:disabled {
+            background-color: #6c757d;
+        }
+        
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: #495057;
+            cursor: pointer;
+            font-size: 1.5rem;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s ease;
+        }
+        
+        .theme-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .dark-mode .theme-toggle {
+            color: #e9ecef;
+        }
+        
+        .dark-mode .theme-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle">☾</button>
+    <div class="container">
+        <h1>Tudor's Nosleep Zone</h1>
+        <p>Keep your screen awake with this minimalist utility. Click the button below to prevent your screen from turning off.</p>
+        
+        <div class="status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span class="status-text" id="statusText">Screen sleep: enabled</span>
+        </div>
+        
+        <button id="toggleButton">Keep Screen Awake</button>
+        
+        <div class="time-active" id="timeActive"></div>
+    </div>
+
+    <script>
+        // Check if the Wake Lock API is supported
+        let wakeLock = null;
+        let startTime = null;
+        let timerInterval = null;
+        const toggleButton = document.getElementById('toggleButton');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const timeActive = document.getElementById('timeActive');
+        const themeToggle = document.getElementById('themeToggle');
+        
+        // Check if the browser supports the Wake Lock API
+        if ('wakeLock' in navigator) {
+            toggleButton.addEventListener('click', toggleWakeLock);
+        } else {
+            toggleButton.disabled = true;
+            statusText.textContent = 'Wake Lock API not supported in this browser';
+        }
+        
+        // Theme toggle functionality
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀' : '☾';
+        });
+        
+        // Function to request a wake lock
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                
+                statusIndicator.classList.add('active');
+                statusText.textContent = 'Screen sleep: disabled';
+                toggleButton.textContent = 'Allow Screen Sleep';
+                
+                startTime = new Date();
+                updateTimer();
+                timerInterval = setInterval(updateTimer, 1000);
+                
+                wakeLock.addEventListener('release', () => {
+                    clearWakeLock();
+                });
+                
+                // Listen for page visibility changes
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+            } catch (err) {
+                console.error(`Failed to request wake lock: ${err.message}`);
+                statusText.textContent = `Error: ${err.message}`;
+            }
+        }
+        
+        // Function to release wake lock
+        function releaseWakeLock() {
+            if (wakeLock) {
+                wakeLock.release()
+                    .then(() => {
+                        clearWakeLock();
+                    });
+            }
+        }
+        
+        // Function to toggle wake lock on/off
+        async function toggleWakeLock() {
+            if (wakeLock) {
+                releaseWakeLock();
+            } else {
+                await requestWakeLock();
+            }
+        }
+        
+        // Function to clear wake lock state
+        function clearWakeLock() {
+            wakeLock = null;
+            statusIndicator.classList.remove('active');
+            statusText.textContent = 'Screen sleep: enabled';
+            toggleButton.textContent = 'Keep Screen Awake';
+            
+            clearInterval(timerInterval);
+            startTime = null;
+            timeActive.textContent = '';
+            
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }
+        
+        // Function to handle visibility changes
+        async function handleVisibilityChange() {
+            if (wakeLock && document.visibilityState === 'visible') {
+                // Re-request the wake lock when the page becomes visible again
+                wakeLock = null;
+                await requestWakeLock();
+            }
+        }
+        
+        // Function to update the timer display
+        function updateTimer() {
+            if (startTime) {
+                const now = new Date();
+                const diff = now - startTime;
+                
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                timeActive.textContent = `Screen kept awake for: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+    </script>
+</body>
+</html>
